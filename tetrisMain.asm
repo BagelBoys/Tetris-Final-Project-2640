@@ -1,5 +1,23 @@
 #CS2640 Tetris Final Project
 
+#RNG macro takes in 2 parameters (range and resultreg). The range parameter controls range of random numbers (ex: if range set to 20, possible numbers you can get are 0-20)
+#The resultreg parameter is the register the random number will be stored in
+.macro RNG(%range, %resultreg)
+    li $v0, 41        # Syscall 41: Generate random int
+    li $a0, 0         # Select random generator 0
+    syscall           # Random number returned in $a0
+
+    li $t0, %range    # Load range into $t0
+    rem %resultreg, $a0, $t0  # result = $a0 % range
+    bltz %resultreg, fix_neg  # Fix if result is negative
+    j done_rng
+
+fix_neg:
+    add %resultreg, %resultreg, $t0 # Add range to fix negative number
+
+done_rng:
+.end_macro
+
 
 .macro printStr(%str)
 	li $v0, 4
