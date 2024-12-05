@@ -37,6 +37,84 @@ block:      .asciiz "#"
 empty:      .asciiz "."
 row_end:    .asciiz "\n"
 userinput_buffer: .space 2
+
+#block representations
+	#t blocks
+	t_block_default: 
+		.asciiz "###"
+		.asciiz ".#."
+	t_block_90:
+		.asciiz ".#."
+		.asciiz "##."
+		.asciiz ".#."
+	t_block_180:
+		.asciiz ".#."
+		.asciiz "###"
+	t_block_270:
+		.asciiz "#.."
+		.asciiz "##."
+		.asciiz "#.."
+	#square
+	square_default:
+		.asciiz "##"
+		.asciiz "##"
+	#s 
+	s_default:
+		.asciiz ".##"
+		.asciiz "##."
+	s_90:
+		.asciiz "#.."
+		.asciiz "##"
+		.asciiz ".#."
+	#z 
+	z_default:
+		.asciiz "##."
+		.asciiz ".##"
+	z_90:
+		.asciiz "..#"
+		.asciiz ".##"
+		.asciiz ".#."
+	
+	#i
+	i_default:
+		.asciiz "####"
+	i_90:
+		.asciiz "#"
+		.asciiz "#"
+		.asciiz "#"
+		.asciiz "#"
+	
+	#j
+	j_default:
+		.asciiz ".#"
+		.asciiz ".#"
+		.asciiz "##"
+	j_90: 
+		.asciiz "####"
+		.asciiz "...#"
+	j_180:
+		.asciiz "##"
+		.asciiz "#"
+		.asciiz "#"
+	j_270:
+		.asciiz "#..."
+		.asciiz "####"
+	#l
+	l_default:
+		.asciiz ".#"
+		.asciiz ".#"
+		.asciiz "##"
+	l_90: 
+		.asciiz "####"
+		.asciiz "...#"
+	l_180:
+		.asciiz "##"
+		.asciiz "#"
+		.asciiz "#"
+	l_270:
+		.asciiz "#..."
+		.asciiz "####"
+	
 .text
 
 main:
@@ -104,15 +182,18 @@ get_Instruction: #get the user input
     	j validate_Instruction
     
 validate_Instruction:  #make sure that the instruction is one character, and either 'a', 's', or 'd'
-    	li $t6, 97 #ascii for 'a'
+    	li $t6, 97 #ascii for 'a', which will move the block left
     	beq $s0, $t6, valid
 
-    	li $t6, 115 #ascii for 's'
+    	li $t6, 115 #ascii for 's', which will move the block down
     	beq $s0, $t6, valid
 
-    	li $t6, 100 #ascii for 'd'
+    	li $t6, 100 #ascii for 'd', which will move the block right
     	beq $s0, $t6, valid
-
+    	
+    	li $t6, 82 #ascii for 'r', which will be used to rotate the block
+	beq $s0, $t6, valid
+	
     	j invalid 
 
 invalid: #anything other than a, s, d will be considered invalid 
