@@ -91,13 +91,14 @@ exitMacro:
 .data
 instructions: .asciiz "\nControls: 'a' = left, 'd' = right, 's' = drop\n\n"
 invalidIns: .asciiz "\nThis is an invalid input! Try again."
-moveprompt:     .asciiz "\nEnter your move ('a' = left, 'd' = right, 's' = drop, 'r' = rotate 'q' = quit): "
+moveprompt:     .asciiz "\nEnter your move ('a' = left, 'd' = right, 's' = drop, 'q' = quit): "
 turnprompt: .asciiz "Turn: "
 newline:    .asciiz "\n"
 hash:      .asciiz "#"
 empty:      .asciiz "."
 row_end:    .asciiz "\n"
 userinput_buffer: .space 2
+invalidmoveMsg: .asciiz "\n\nBlock is being obstructed and cannot move, going to next turn\n\n"
 
 #grid arrays (20 rows, 10 columns)
 gridspace: .space 200
@@ -318,9 +319,7 @@ validate_Instruction:  #make sure that the instruction is one character, and eit
     	beq $s0, $t6, exit
 
     	j invalid 
-
-
-
+    	
 move_left:
 	jal move_block_left
 	j valid
@@ -366,10 +365,19 @@ next_row:
 
 set_invalid_move:
     li $t9, 1                   # Flag as invalid move
-    j check_rows
+    j execute_move
 
 execute_move:
     beqz $t9, perform_shift     # If move is valid, perform shift
+    
+    li $v0, 4
+    la $a0, invalidmoveMsg	   # Prints invalid move message if flagged
+    syscall
+    
+    li $t9, -1 	   # Sets $t9 back to -1 so new block is not generated
+    
+    add $s7, $s7, 1	   # Increments turn counter
+    
     j game_loop                 # Otherwise, return to game loop
 
 perform_shift:
@@ -409,6 +417,9 @@ shift_next_row:
 
 end_move_block_left:
     jr $ra
+
+#moveRight
+
 move_right:
     jal move_block_right
     j valid
@@ -455,7 +466,15 @@ next_row_right:
 
 set_invalid_move_right:
     li $t9, 1                   # Flag as invalid move
-    j check_rows_right
+
+    # Handle invalid move
+    li $v0, 4
+    la $a0, invalidmoveMsg       # Prints invalid move message
+    syscall
+
+    li $t9, -1                   # Resets $t9 to ensure no new block is generated
+    add $s7, $s7, 1              # Increments turn counter
+    j game_loop                  # Return to game loop
 
 execute_move_right:
     beqz $t9, perform_shift_right  # If move is valid, perform shift
@@ -499,7 +518,6 @@ shift_next_row_right:
 
 end_move_block_right:
     jr $ra
-
 
 
 #DROP
