@@ -98,6 +98,7 @@ hash:      .asciiz "#"
 empty:      .asciiz "."
 row_end:    .asciiz "\n"
 userinput_buffer: .space 2
+invalidmoveMsg: .asciiz "\n\nBlock is being obstructed and cannot move, going to next turn\n\n"
 
 #grid arrays (20 rows, 10 columns)
 gridspace: .space 200
@@ -364,10 +365,19 @@ next_row:
 
 set_invalid_move:
     li $t9, 1                   # Flag as invalid move
-    j check_rows
+    j execute_move
 
 execute_move:
     beqz $t9, perform_shift     # If move is valid, perform shift
+    
+    li $v0, 4
+    la $a0, invalidmoveMsg	   # Prints invalid move message if flagged
+    syscall
+    
+    li $t9, -1 	   # Sets $t9 back to -1 so new block is not generated
+    
+    add $s7, $s7, 1	   # Increments turn counter
+    
     j game_loop                 # Otherwise, return to game loop
 
 perform_shift:
@@ -524,3 +534,4 @@ exit:
 	#ends program
 	li $v0, 10
 	syscall
+
