@@ -408,71 +408,91 @@ shift_next_row:
 end_move_block_left:
     jr $ra
 
+#DROP
 drop:
     jal hard_drop          # Call hard_drop to calculate and apply the drop
-    j valid                # After drop, continue execution with the "valid" label
+    j valid
 
 hard_drop:
-    la $t0, row1           # Load base address of the grid (starting at row1)
-    li $t1, 20             # Total number of rows (20)
-    li $t2, 0              # Row index (starting at 0)
+    la $t0, row1           # Start at the first row (row1)
+    li $t1, 20             # Total number of rows in the grid
+    li $t9, 0              # Initialize drop distance as 0 (no drop yet)
 
-# Step 1: Calculate the maximum drop distance for the block
+# Step 1: Calculate the drop distance for the block
 calculate_drop_distance:
-    li $t3, 0              # Column index (starting at 0)
-    li $t4, 10             # Total number of columns (10)
-    li $t5, 0              # Drop distance (in rows, initialized to 0)
+    li $t2, 0              # Row index (starting at 0)
+    li $t3, 10             # Total number of columns (10 columns)
+    li $t4, 0              # Column index (starting at 0)
+    add $t5, $t0, $t4      # Pointer to the first cell in row1
 
-check_column:
-    beq $t3, $t4, next_column  # If we've checked all columns, move to next step
-    add $t6, $t0, $t3      # Calculate address of the current cell (row1 + column offset)
-    lw $t7, 0($t6)         # Load value of the current cell (1 if occupied, 0 if empty)
-    beqz $t7, skip_column  # Skip if the cell is empty (0)
+check_cells:
+    beq $t4, $t3, next_drop_row  # Move to next row if all columns checked
+    lw $t6, 0($t5)         # Load cell value (0 if empty, 1 if occupied)
+    beqz $t6, skip_cell    # Skip if cell is empty (0)
 
-    # Step 2: Calculate how far the block can drop in the current column
-    li $t8, 1              # Start checking the next row (start with 1 row)
+    # Step 2: Find how far this cell can move down
+    li $t7, 1              # Start with 1 row as the initial drop distance
 find_max_drop:
-    add $t9, $t0, $t8      # Calculate address of the row below
-    mul $t9, $t9, 40       # 40 bytes per row (10 columns * 4 bytes)
-    add $t9, $t9, $t3      # Add the column offset (same column as current cell)
-    lw $s5, 0($t9)         # Load the value of the cell below
+    mul $t8, $t7, 40       # Calculate the row offset (40 bytes per row)
+    add $t8, $t0, $t8      # Add the row offset to the current row address
+    add $t8, $t8, $t4      # Add the column offset (same column)
+    li $t9, 1596           # Maximum valid address for the grid (bottom row of grid)
+    blt $t8, $t9, valid_drop_address
+    j valid                # Exit if out of bounds (drop beyond grid)
 
-    bnez $s5, stop_drop    # If the cell below is occupied, stop
-    addi $t8, $t8, 1       # Otherwise, increment drop distance by 1 row
-    blt $t8, 20, find_max_drop  # Continue searching if we're within bounds
+valid_drop_address:
+    lw $s5, 0($t8)         # Load the cell value of the cell below
 
-stop_drop:
-    move $t5, $t8          # Store the maximum drop distance for this column
-skip_column:
-    addi $t3, $t3, 1       # Move to the next column
-    j check_column
+    bnez $s5, update_drop  # If the cell below is occupied (not empty), stop
+    addi $t7, $t7, 1       # Increment drop distance by 1 row
+    blt $t7, $t9, find_max_drop # Continue checking until the bottom of the grid
 
-next_column:
-    # Step 3: Perform the actual drop for each column
-    li $t3, 0              # Reset column index to 0
-    li $t4, 10             # Reset total columns to 10
-
-perform_drop:
-    beq $t3, $t4, done_drop # If all columns have been processed, finish
-    add $t6, $t0, $t3      # Calculate address of the current cell
-    lw $t7, 0($t6)         # Load the value of the current cell
-    beqz $t7, skip_cell    # If the cell is empty, skip
-
-    # Move the block down to the calculated distance
-    mul $t8, $t5, 40       # Calculate the byte offset for the drop distance
-    add $t9, $t0, $t8      # Add the byte offset to the base address
-    add $t9, $t9, $t3      # Add the column offset
-
-    sw $t7, 0($t9)         # Store the block in the new position
-    sw $zero, 0($t6)       # Clear the old position (set to 0)
+update_drop:
+    move $t9, $t7          # Update maximum drop distance in $t9 (the drop distance)
+    j skip_cell
 
 skip_cell:
-    addi $t3, $t3, 1       # Move to the next column
-    j perform_drop
+    addi $t5, $t5, 4       # Move to the next column in the row (4 bytes per column)
+    addi $t4, $t4, 1
+    j check_cells
 
-done_drop:
-    jr $ra                 # Return to the calling function
+next_drop_row:
+    addi $t0, $t0, 40      # Move to next row (grid has 10 columns, 4 bytes per cell)
+    addi $t2, $t2, 1
+    blt $t2, $t1, calculate_drop_distance
 
+# Step 3: Perform the actual hard drop by moving the block down by the calculated distance
+perform_hard_drop:
+    la $t0, row1           # Start at the first row
+    li $t1, 0              # Row index
+    li $t2, 10             # Number of columns (10)
+    li $t3, 0              # Column index (starting at 0)
+    add $t4, $t0, $t3      # Pointer to the current cell in the first row
+
+hard_drop_cells:
+    beq $t3, $t2, drop_next_row # Move to the next row if all columns are checked
+    lw $t6, 0($t4)         # Load cell value (current block's value)
+    beqz $t6, skip_hard_cell  # Skip if the cell is empty
+
+    # Move the cell down by the drop distance (t9 rows)
+    mul $t7, $t9, 40       # Calculate row offset for drop distance (40 bytes per row)
+    add $t8, $t0, $t7      # Move pointer to the correct row (based on drop distance)
+    add $t8, $t8, $t3      # Add column offset (same column as current cell)
+    sw $t6, 0($t8)         # Move the block's cell to the new position (after drop)
+    sw $zero, 0($t4)       # Clear the old position (set to 0)
+
+skip_hard_cell:
+    addi $t4, $t4, 4       # Move to the next column (4 bytes per column)
+    addi $t3, $t3, 1
+    j hard_drop_cells
+
+drop_next_row:
+    addi $t0, $t0, 40      # Move to the next row
+    addi $t1, $t1, 1
+    blt $t1, 20, perform_hard_drop  # Ensure we go through all rows in the grid
+
+finalize_hard_drop:
+    jr $ra                # Finalize block, clear rows, and spawn new block
 
 
 
