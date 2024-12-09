@@ -1,0 +1,626 @@
+#CS2640 Tetris Final Project
+
+.macro RNG(%range, %resultreg)
+    li $v0, 41        # Syscall 41: Generate random int
+    li $a0, 0         # Select random generator 0
+    syscall           # Random number returned in $a0
+
+    li $t0, %range    # Load range into $t0
+    rem %resultreg, $a0, $t0  # result = $a0 % range
+    bltz %resultreg, fix_neg  # Fix if result is negative
+    j done_rng
+
+fix_neg:
+    add %resultreg, %resultreg, $t0 # Add range to fix negative number
+
+done_rng:
+.end_macro
+
+.macro arrayTraversePrint(%arr)
+	la $s0, %arr
+	la $t1, 10
+	la $t2, 0
+traverse_loop:
+	beq $t2, $t1, exitMacro                
+	lw $t0, 0($s0)                     
+	bnez $t0, print_hash
+
+	li $v0, 4                          
+	la $a0, empty                      
+	syscall
+
+	addi $s0, $s0, 4                  
+	addi $t2, $t2, 1
+	bne $t1, $t2, traverse_loop
+	j exitMacro
+    	     
+print_hash:
+	li $v0, 4
+	la $a0, hash
+	syscall
+	
+	addi $s0, $s0, 4                  
+    	addi $t2, $t2, 1                   
+	j traverse_loop
+
+exitMacro:
+	li $v0, 4
+	la $a0, newline
+	syscall                 
+.end_macro	
+
+.macro printStr(%str)
+	li $v0, 4
+	la $a0, %str
+	syscall
+.end_macro
+
+.macro printGrid
+	arrayTraversePrint(row1)
+	arrayTraversePrint(row2)
+	arrayTraversePrint(row3)
+	arrayTraversePrint(row4)
+	arrayTraversePrint(row5)
+	arrayTraversePrint(row6)
+	arrayTraversePrint(row7)
+	arrayTraversePrint(row8)
+	arrayTraversePrint(row9)
+	arrayTraversePrint(row10)
+	arrayTraversePrint(row11)
+	arrayTraversePrint(row12)
+	arrayTraversePrint(row13)
+	arrayTraversePrint(row14)
+	arrayTraversePrint(row15)
+	arrayTraversePrint(row16)
+	arrayTraversePrint(row17)
+	arrayTraversePrint(row18)
+	arrayTraversePrint(row19)
+	arrayTraversePrint(row20)
+.end_macro
+
+.data
+instructions: .asciiz "\nControls: 'a' = left, 'd' = right, 's' = drop, 'q' = quit\n\n"
+invalidIns: .asciiz "\nThis is an invalid input! Try again."
+moveprompt: .asciiz "\nEnter your move ('a' = left, 'd' = right, 's' = drop, 'q' = quit): "
+turnprompt: .asciiz "Turn: "
+newline:    .asciiz "\n"
+hash:       .asciiz "#"
+empty:      .asciiz "."
+row_end:    .asciiz "\n"
+userinput_buffer: .space 2
+invalidmoveMsg: .asciiz "\n\nBlock is being obstructed and cannot move, going to next turn\n\n"
+
+#grid arrays (20 rows, 10 columns)
+# 0 = empty, 1 = block
+row1: .word 0,0,0,0,0,0,0,0,0,0
+row2: .word 0,0,0,0,0,0,0,0,0,0
+row3: .word 0,0,0,0,0,0,0,0,0,0
+row4: .word 0,0,0,0,0,0,0,0,0,0
+row5: .word 0,0,0,0,0,0,0,0,0,0
+row6: .word 0,0,0,0,0,0,0,0,0,0
+row7: .word 0,0,0,0,0,0,0,0,0,0
+row8: .word 0,0,0,0,0,0,0,0,0,0
+row9: .word 0,0,0,0,0,0,0,0,0,0
+row10:.word 0,0,0,0,0,0,0,0,0,0
+row11:.word 0,0,0,0,0,0,0,0,0,0
+row12:.word 0,0,0,0,0,0,0,0,0,0
+row13:.word 0,0,0,0,0,0,0,0,0,0
+row14:.word 0,0,0,0,0,0,0,0,0,0
+row15:.word 0,0,0,0,0,0,0,0,0,0
+row16:.word 0,0,0,0,0,0,0,0,0,0
+row17:.word 0,0,0,0,0,0,0,0,0,0
+row18:.word 0,0,0,0,0,0,0,0,0,0
+row19:.word 0,0,0,0,0,0,0,0,0,0
+row20:.word 0,0,0,0,0,0,0,0,0,0
+
+.text
+.globl main
+main:
+	li $s7, 1   # turn counter
+	li $t9, 0   # currentBlockMoving boolean: 0 = no block, -1 = block present
+
+	# Print instructions
+	li $v0,4
+	la $a0,instructions
+	syscall
+
+game_loop:
+	bgezal $t9, block_generate
+	j print_current_iteration
+
+move_prompt:
+	# Move prompt
+	li $v0,4
+	la $a0,moveprompt
+	syscall
+	
+	j get_Instruction
+	
+	j exit
+
+block_generate:
+	# Set currentBlockMoving ($t9) to -1 (block now present)
+	li $t9, -1
+	RNG(6, $t7)
+
+	beq $t7,0, square_block	
+	beq $t7,1, line_block
+	beq $t7,2, l_block_left
+	beq $t7,3, l_block_right
+	beq $t7,4, s_block
+	beq $t7,5, z_block
+	beq $t7,6, t_block
+
+	# fallback if no branch taken (just return)
+	jr $ra
+
+square_block:
+	la $s3, row1
+	li $s4, 1
+	sw $s4, 16($s3)
+	sw $s4, 20($s3)
+
+	la $s3, row2
+	sw $s4, 16($s3)
+	sw $s4, 20($s3)
+	jr $ra
+
+line_block:
+	la $s3, row1
+	li $s4, 1
+	sw $s4, 12($s3)
+	sw $s4, 16($s3)
+	sw $s4, 20($s3)
+	sw $s4, 24($s3)
+	jr $ra
+
+l_block_left:
+	la $s3, row1
+	li $s4,1
+	sw $s4,20($s3)
+
+	la $s3, row2
+	sw $s4,12($s3)
+	sw $s4,16($s3)
+	sw $s4,20($s3)
+	jr $ra
+
+l_block_right:
+	la $s3, row1
+	li $s4,1
+	sw $s4,12($s3)
+
+	la $s3, row2
+	sw $s4,12($s3)
+	sw $s4,16($s3)
+	sw $s4,20($s3)
+	jr $ra
+
+s_block:
+	la $s3,row1
+	li $s4,1
+	sw $s4,16($s3)	
+	sw $s4,20($s3)
+	
+	la $s3,row2
+	sw $s4,12($s3)
+	sw $s4,16($s3)
+	jr $ra
+
+z_block:
+	la $s3,row1
+	li $s4,1
+	sw $s4,12($s3)	
+	sw $s4,16($s3)
+	
+	la $s3,row2
+	sw $s4,16($s3)
+	sw $s4,20($s3)
+	jr $ra	
+
+t_block:
+	la $s3,row1
+	li $s4,1	
+	sw $s4,16($s3)
+
+	la $s3,row2
+	sw $s4,12($s3)
+	sw $s4,16($s3)
+	sw $s4,20($s3)
+	jr $ra
+
+print_current_iteration:
+	printStr(turnprompt)
+	li $v0,1
+	la $a0,($s7)
+	syscall
+	printStr(newline)
+
+	printGrid
+	j move_prompt
+
+get_Instruction:
+	li $v0,8
+	la $a0,userinput_buffer
+	li $a1,2
+	syscall
+	lb $s0,0($a0)
+	j validate_Instruction
+
+validate_Instruction:
+	li $t6,97  # 'a'
+	beq $s0,$t6,move_left
+
+	li $t6,115 # 's'
+	beq $s0,$t6,drop
+
+	li $t6,100 # 'd'
+	beq $s0,$t6,move_right
+
+	li $t6,113 # 'q'
+	beq $s0,$t6,exit
+
+	j invalid
+
+invalid:
+	li $v0,4
+	la $a0,invalidIns
+	syscall
+	printStr(newline)
+	j get_Instruction
+
+###################
+# NEW SIDE COLLISION CHECK LOGIC
+###################
+
+# check_move_left:
+# Checks if any block in the board can move left.
+# Returns v0 = 0 if move is valid, v0 = 1 if invalid.
+check_move_left:
+    la $t0,row1
+    li $t1,20   # 20 rows
+    li $t2,0    # row counter
+
+check_left_rows:
+    beq $t2,$t1,left_done_check
+    li $t3,10   # columns
+    li $t4,0    # col index
+    move $t5,$t0
+
+left_check_cells:
+    beq $t4,$t3,left_next_row
+    lw $t6,0($t5)
+    beqz $t6,left_next_cell   # empty cell
+    # found a block at (t2-th row, t4-th col)
+    # check left cell
+    blt $t4,1,left_invalid    # at leftmost column already
+    addi $t7,$t4,-1
+    mul $t7,$t7,4
+    add $t8,$t0,$t7
+    lw $t9,0($t8)
+    bnez $t9,left_invalid     # left cell occupied
+
+    j left_next_row
+
+left_next_cell:
+    addi $t5,$t5,4
+    addi $t4,$t4,1
+    j left_check_cells
+
+left_next_row:
+    addi $t0,$t0,40
+    addi $t2,$t2,1
+    j check_left_rows
+
+left_invalid:
+    li $v0,1
+    jr $ra
+
+left_done_check:
+    li $v0,0
+    jr $ra
+
+# check_move_right:
+# Checks if any block in the board can move right.
+# Returns v0 = 0 if move is valid, v0 = 1 if invalid.
+check_move_right:
+    la $t0,row1
+    li $t1,20  # rows
+    li $t2,0
+
+check_right_rows:
+    beq $t2,$t1,right_done_check
+    li $t3,10
+    li $t4,9    # start from rightmost column
+    mul $t5,$t4,4
+    add $t5,$t5,$t0
+
+right_check_cells:
+    bltz $t4,right_next_row
+    lw $t6,0($t5)
+    beqz $t6,right_prev_cell
+    # found a block at (t2-th row, t4-th col)
+    # check right cell
+    bge $t4,9,right_invalid   # at rightmost column
+    addi $t7,$t4,1
+    mul $t7,$t7,4
+    add $t8,$t0,$t7
+    lw $t9,0($t8)
+    bnez $t9,right_invalid    # right cell occupied
+
+    j right_next_row
+
+right_prev_cell:
+    sub $t5,$t5,4
+    addi $t4,$t4,-1
+    j right_check_cells
+
+right_next_row:
+    addi $t0,$t0,40
+    addi $t2,$t2,1
+    j check_right_rows
+
+right_invalid:
+    li $v0,1
+    jr $ra
+
+right_done_check:
+    li $v0,0
+    jr $ra
+
+#################################
+# MOVE LEFT/RIGHT Using Checks
+#################################
+
+move_left:
+    # Check if move is possible
+    jal check_move_left
+    beqz $v0,do_move_left
+
+    # Invalid move
+    li $v0,4
+    la $a0,invalidmoveMsg
+    syscall
+
+    li $t9,-1       # keep block present
+    add $s7,$s7,1    # increment turn
+    j game_loop
+
+do_move_left:
+    # Perform the shift to the left
+    jal perform_shift_left
+    j valid
+
+perform_shift_left:
+    la $t0,row1
+    li $t1,20
+    li $t2,0
+
+shift_rows_left:
+    beq $t2,$t1,end_shift_left
+    li $t3,10
+    li $t4,0
+    move $t5,$t0
+
+shift_cells_left:
+    beq $t4,$t3,shift_next_row_left
+    lw $t6,0($t5)
+    beqz $t6,skip_shift_left
+    # shift block left
+    addi $t7,$t4,-1
+    mul $t7,$t7,4
+    add $t8,$t0,$t7
+    sw $t6,0($t8)
+    sw $zero,0($t5)
+
+skip_shift_left:
+    addi $t5,$t5,4
+    addi $t4,$t4,1
+    j shift_cells_left
+
+shift_next_row_left:
+    addi $t0,$t0,40
+    addi $t2,$t2,1
+    j shift_rows_left
+
+end_shift_left:
+    jr $ra
+
+
+move_right:
+    # Check if move is possible
+    jal check_move_right
+    beqz $v0,do_move_right
+
+    # Invalid move
+    li $v0,4
+    la $a0,invalidmoveMsg
+    syscall
+
+    li $t9,-1       # keep block present
+    add $s7,$s7,1    # increment turn
+    j game_loop
+
+do_move_right:
+    # Perform the shift to the right
+    jal perform_shift_right
+    j valid
+
+perform_shift_right:
+    la $t0,row1
+    li $t1,20
+    li $t2,0
+
+shift_rows_right:
+    beq $t2,$t1,end_shift_right
+    li $t3,10
+    li $t4,9
+    mul $t5,$t4,4
+    add $t5,$t5,$t0
+
+shift_cells_right:
+    bltz $t4,shift_next_row_right
+    lw $t6,0($t5)
+    beqz $t6,skip_shift_right
+    # shift block right
+    addi $t7,$t4,1
+    mul $t7,$t7,4
+    add $t8,$t0,$t7
+    sw $t6,0($t8)
+    sw $zero,0($t5)
+
+skip_shift_right:
+    sub $t5,$t5,4
+    addi $t4,$t4,-1
+    j shift_cells_right
+
+shift_next_row_right:
+    addi $t0,$t0,40
+    addi $t2,$t2,1
+    j shift_rows_right
+
+end_shift_right:
+    jr $ra
+
+#################################
+# DROP LOGIC
+#################################
+
+drop:
+    jal check_move_down
+    beqz $v0, do_move_down   # v0=0 means move is valid
+    # If invalid, we finalize piece
+    li $t9, 0       # No current moving block
+    addi $s7, $s7, 1 # Increment turn counter
+    j game_loop
+
+do_move_down:
+    jal perform_shift_down
+    j valid
+
+# check_move_down:
+# Checks if we can move all occupied cells (1) down by one row.
+# Returns v0 = 0 if valid (can move down), v0 = 1 if invalid (blocked or bottom).
+check_move_down:
+    la $t0, row1
+    li $t1, 20       # Total rows
+    li $t2, 0        # Row index
+
+    # We'll check from bottom up for convenience
+    # Actually for checking it's fine from top down, but we just need a decision.
+    # If any block is on the bottom row (row index=19) or cell below is occupied,
+    # move is invalid.
+    
+    # rows: 0 to 19 (0 top, 19 bottom)
+    # We'll just do a top-down check:
+cmdd_loop_rows:
+    beq $t2, $t1, cmdd_done_check
+    li $t3, 10      # columns
+    li $t4, 0       # column index
+    move $t5, $t0    # pointer to start of this row
+
+cmdd_check_cells:
+    beq $t4, $t3, cmdd_next_row
+    lw $t6, 0($t5)  # cell value
+    beqz $t6, cmdd_skip_cell
+
+    # If block found, check below row (t2+1) if within bounds
+    li $t7, 19
+    beq $t2, $t7, cmdd_invalid   # if block on bottom row, can't go down
+
+    # Check cell below
+    addi $t8, $t2, 1    # next row index
+    # row size: 10 cells * 4 bytes = 40 bytes per row
+    li $t9, 40
+    mul $t9, $t8, $t9   # row offset
+    la $s0, row1
+    add $s0, $s0, $t9   # s0 now at start of (t2+1)-th row
+    mul $t7, $t4, 4
+    add $s0, $s0, $t7    # s0 points to cell below current block
+    lw $t7, 0($s0)
+    bnez $t7, cmdd_invalid  # cell below occupied, invalid
+
+cmdd_skip_cell:
+    addi $t5, $t5, 4
+    addi $t4, $t4, 1
+    j cmdd_check_cells
+
+cmdd_next_row:
+    addi $t0, $t0, 40
+    addi $t2, $t2, 1
+    j cmdd_loop_rows
+
+cmdd_done_check:
+    # no issues found
+    li $v0, 0
+    jr $ra
+
+cmdd_invalid:
+    li $v0, 1
+    jr $ra
+
+# perform_shift_down:
+# Shifts all blocks down by one row.
+# Important: shift from bottom to top to avoid overwriting blocks.
+perform_shift_down:
+    la $t0, row20
+    li $t1, 20
+    # We'll start from the bottom row (row20) and move upward.
+    # row20 label is top of last row, we can move upwards by subtracting 40 each time.
+    # Actually, we know row1 is at the top and row20 at the bottom. We'll index backwards:
+    li $t2, 19   # bottom row index
+    # We'll handle rows in reverse: from bottom to top
+psd_loop_rows:
+    bltz $t2, psd_done_shift   # if t2 < 0, done all rows
+
+    # Get row address for t2-th row
+    # row index * 40 + address(row1) = start of that row
+    li $t3, 40
+    mul $t4, $t2, $t3
+    la $t5, row1
+    add $t5, $t5, $t4  # t5 points to current row (t2-th row)
+
+    li $t6, 10  # columns
+    li $t7, 0   # column index
+    move $t8, $t5
+
+psd_check_cells:
+    beq $t7, $t6, psd_next_row
+    lw $t9, 0($t8)
+    beqz $t9, psd_skip_cell
+
+    # Move this block down by one row
+    # (t2+1)th row (if in range)
+    addi $s1, $t2, 1
+    li $s2, 40
+    mul $s2, $s1, $s2
+    la $s3, row1
+    add $s3, $s3, $s2
+    mul $s2, $t7, 4
+    add $s3, $s3, $s2
+    sw $t9,0($s3)     # move block down one row
+    sw $zero,0($t8)   # clear old position
+
+psd_skip_cell:
+    addi $t8,$t8,4
+    addi $t7,$t7,1
+    j psd_check_cells
+
+psd_next_row:
+    addi $t2,$t2,-1
+    j psd_loop_rows
+
+psd_done_shift:
+    jr $ra
+
+valid:
+    printStr(newline)
+    printStr(newline)
+    printStr(newline)
+    addi $s7, $s7, 1
+    printStr(newline)
+    j print_current_iteration
+
+exit:
+    li $v0, 10
+    syscall
